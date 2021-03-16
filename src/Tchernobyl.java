@@ -11,7 +11,14 @@ import java.util.Random;
 
 public class Tchernobyl {
     public static void main(String[] args) throws IOException {
-        traiterDossier("L:/testApprentissage/in","L:/testApprentissage/out",30,300);
+        if(args.length == 0)
+        {
+            System.out.println("Tchernobyl <dossier source> <dossier destination> <nombre de mutations> <resolution des images finales>");
+        }else {
+            int mutations = Integer.parseInt(args[2]);
+            int dimCible = Integer.parseInt(args[2]);
+            traiterDossier(args[0], args[1], mutations, dimCible);
+        }
     }
     public static Image openImage(String path)
     {
