@@ -7,6 +7,9 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Random;
 
 public class Tchernobyl {
@@ -16,8 +19,8 @@ public class Tchernobyl {
             System.out.println("Tchernobyl <dossier source> <dossier destination> <nombre de mutations> <resolution des images finales>");
         }else {
             int mutations = Integer.parseInt(args[2]);
-            int dimCible = Integer.parseInt(args[2]);
-            traiterDossier(args[0], args[1], mutations, dimCible);
+            int dimCible = Integer.parseInt(args[3]);
+            traiterDossierdeDossiers(args[0], args[1], mutations, dimCible);
         }
     }
     public static Image openImage(String path)
@@ -122,11 +125,11 @@ public class Tchernobyl {
         g.dispose();
         return b;
     }
-    public static BufferedImage muterTaille(BufferedImage bufferedImage,int largMin,Random r)throws IOException
+    public static BufferedImage muterTaille(BufferedImage bufferedImage,double RatioMin,Random r)throws IOException
     {
-
         double wx = bufferedImage.getWidth();
         double wy = bufferedImage.getHeight();
+        int largMin = (int)(RatioMin* Math.min(wx,wy));
         if(largMin>Math.max(wx,wy))
         {
             largMin = (int)Math.max(wx,wy)-1;
@@ -167,6 +170,125 @@ public class Tchernobyl {
                 int bc = (int)Math.max(0,Math.min(255,c0.getBlue()+r.nextGaussian()*sigma));
                 Color c = new Color(rc,gc,bc);
                 bufferedImage.setRGB(i,j,c.getRGB());
+            }
+        }
+        return bufferedImage;
+    }
+    public static void updateBord(int i,int j, int wx ,int wy,boolean[][] bords)
+    {
+        for(int u=-1;u<=1;u++)
+        {
+            for(int v=-1;v<=1;v++)
+            {
+                if(u!=0 || v != 0)
+                {
+                    int ir = Math.max(0,Math.min(wx-1,i+u));
+                    int jr = Math.max(0,Math.min(wy-1,j+v));
+                    boolean voisin = bords[ir][jr];
+                    if(voisin)
+                    {
+                        bords[i][j] = true;
+                    }
+                }
+            }
+        }
+    }
+    public static boolean estBlanc(BufferedImage bufferedImage, int i, int j)
+    {
+        int mx = 240;
+        Color c0 = new Color(bufferedImage.getRGB(i,j));
+        boolean ret = c0.getRed()>mx && c0.getGreen()>mx && c0.getBlue()>mx;
+        return ret;
+    }
+    public static boolean[][] calculerbords(BufferedImage bufferedImage)
+    {
+        int wx = bufferedImage.getWidth();
+        int wy = bufferedImage.getHeight();
+        boolean[][] bords = new boolean[wx][wy];
+        for(int i=0;i<wx;i++)
+        {
+            for(int j=0;j<wy;j++)
+            {
+                if(i==0 || j==0 || i==wx-1 || j == wy-1) {
+                    bords[i][j] = true;
+                }
+                else
+                {
+                    bords[i][j] = false;
+                }
+            }
+        }
+
+        for(int rx=0;rx<wx/2-1;rx++) {
+            int ry=0;
+            for (int i = rx; i < wx-rx; i++) {
+                int j=ry;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+                j=wy-ry-1;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+            }
+            for (int j = ry; j < wy-ry; j++) {
+                int i=rx;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+                i=wx-rx-1;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+            }
+        }
+
+        for (int ry = 0; ry < wy/2-1; ry++) {
+            int rx=0;
+            for (int i = rx; i < wx-rx; i++) {
+                int j=ry;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+                j=wy-ry-1;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+            }
+            for (int j = ry; j < wy-ry; j++) {
+                int i=rx;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+                i=wx-rx-1;
+                if(estBlanc(bufferedImage,i,j))
+                {
+                    updateBord(i,j,wx,wy,bords);
+                }
+            }
+        }
+        return bords;
+    }
+    public static BufferedImage antiFondBlanc(BufferedImage bufferedImage,boolean[][] bords,Random r)throws IOException
+    {
+        bufferedImage = copyImage(bufferedImage);
+        int wx = bufferedImage.getWidth();
+        int wy = bufferedImage.getHeight();
+        Color c = new Color(r.nextInt(255),r.nextInt(255),r.nextInt(255));
+        for(int i=0;i<wx;i++)
+        {
+            for(int j=0;j<wy;j++)
+            {
+                if(bords[i][j]) {
+                    bufferedImage.setRGB(i, j, c.getRGB());
+                }
             }
         }
         return bufferedImage;
@@ -221,8 +343,9 @@ public class Tchernobyl {
         }
         return bufferedImage;
     }
-    public static BufferedImage muter(BufferedImage bufferedImage, Random r, int dimCible,double p) throws IOException {
-        bufferedImage = muterTaille(bufferedImage,150,r);
+    public static BufferedImage muter(BufferedImage bufferedImage, Random r, int dimCible,double p,boolean[][] bords) throws IOException {
+        bufferedImage = antiFondBlanc(bufferedImage,bords,r);
+        bufferedImage = muterTaille(bufferedImage,0.8,r);
         bufferedImage = muterTourner(bufferedImage,r);
         if(r.nextDouble()<p)
         {
@@ -239,8 +362,39 @@ public class Tchernobyl {
         }
         return bufferedImage;
     }
-    public static void traiterDossier(String source, String dest, int mutations,int dimCible)
-    {
+    public static void traiterDossier(String source, String dest, int mutations,int dimCible) throws IOException {
+        Random r = new Random();
+        File directoryPath = new File(source);
+        //List of all files and directories
+        if( ! new File(dest).exists())
+        {
+            Files.createDirectories(Paths.get(dest));
+        }
+        File filesList[] = directoryPath.listFiles();
+        int ifil =0;
+        for(File file : filesList) {
+            ifil ++;
+            String f = file.toString();
+            System.out.println(f);
+            try {
+                BufferedImage bi = toBufferedImage(openImage(f));
+                boolean[][] bords = calculerbords(bi);
+                String nom = new File(source).getName()+"_"+ifil;//file.getName().replaceFirst("[.][^.]+$", "");
+                saveImage(dest+"/"+nom+ "_init.bmp", resizeImage(centrer(bi),dimCible,dimCible));
+                for (int i = 0; i < mutations; i++) {
+                    try {
+
+                        saveImage(dest+"/"+nom+"_mut" + i + ".bmp", muter(bi, r, dimCible,0.4,bords));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    public static void traiterDossierdeDossiers(String source, String dest, int mutations,int dimCible) throws IOException {
         Random r = new Random();
         File directoryPath = new File(source);
         //List of all files and directories
@@ -248,18 +402,10 @@ public class Tchernobyl {
         for(File file : filesList) {
             String f = file.toString();
             System.out.println(f);
-            try {
-                BufferedImage bi = toBufferedImage(openImage(f));
-                saveImage(dest+"/"+file.getName()+ ".bmp", resizeImage(centrer(bi),dimCible,dimCible));
-                for (int i = 0; i < mutations; i++) {
-                    try {
-                        saveImage(dest+"/"+file.getName()+"_mut" + i + ".bmp", muter(bi, r, dimCible,0.4));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+            if(file.isDirectory())
+            {
+                String destination = dest +"/"+ file.getName();
+                traiterDossier(f,destination,mutations,dimCible);
             }
         }
     }
