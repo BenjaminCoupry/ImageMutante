@@ -7,20 +7,24 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.io.File;
 import java.io.IOException;
+import java.nio.Buffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 public class Tchernobyl {
     public static void main(String[] args) throws IOException {
         if(args.length == 0)
         {
-            System.out.println("Tchernobyl <dossier source> <dossier destination> <nombre de mutations> <resolution des images finales>");
+            System.out.println("Tchernobyl <dossier source> <dossier fonds> <dossier destination> <nombre de mutations> <resolution des images finales>");
         }else {
-            int mutations = Integer.parseInt(args[2]);
-            int dimCible = Integer.parseInt(args[3]);
-            traiterDossierdeDossiers(args[0], args[1], mutations, dimCible);
+            int mutations = Integer.parseInt(args[3]);
+            int dimCible = Integer.parseInt(args[4]);
+            traiterDossierdeDossiers(args[0],args[1], args[2], mutations, dimCible);
         }
     }
     public static Image openImage(String path)
@@ -195,7 +199,7 @@ public class Tchernobyl {
     }
     public static boolean estBlanc(BufferedImage bufferedImage, int i, int j)
     {
-        int mx = 240;
+        int mx = 200;
         Color c0 = new Color(bufferedImage.getRGB(i,j));
         boolean ret = c0.getRed()>mx && c0.getGreen()>mx && c0.getBlue()>mx;
         return ret;
@@ -276,18 +280,18 @@ public class Tchernobyl {
         }
         return bords;
     }
-    public static BufferedImage antiFondBlanc(BufferedImage bufferedImage,boolean[][] bords,Random r)throws IOException
+    public static BufferedImage antiFondBlanc(BufferedImage bufferedImage,BufferedImage nouveauFond,boolean[][] bords,Random r)throws IOException
     {
         bufferedImage = copyImage(bufferedImage);
         int wx = bufferedImage.getWidth();
         int wy = bufferedImage.getHeight();
-        Color c = new Color(r.nextInt(255),r.nextInt(255),r.nextInt(255));
+        nouveauFond = resizeImage(nouveauFond,wx,wy);
         for(int i=0;i<wx;i++)
         {
             for(int j=0;j<wy;j++)
             {
                 if(bords[i][j]) {
-                    bufferedImage.setRGB(i, j, c.getRGB());
+                    bufferedImage.setRGB(i, j, nouveauFond.getRGB(i,j));
                 }
             }
         }
@@ -343,10 +347,16 @@ public class Tchernobyl {
         }
         return bufferedImage;
     }
-    public static BufferedImage muter(BufferedImage bufferedImage, Random r, int dimCible,double p,boolean[][] bords) throws IOException {
-        bufferedImage = antiFondBlanc(bufferedImage,bords,r);
-        bufferedImage = muterTaille(bufferedImage,0.8,r);
-        bufferedImage = muterTourner(bufferedImage,r);
+    public static BufferedImage muter(BufferedImage bufferedImage, ArrayList<String> fonds, Random r, int dimCible, double p, boolean[][] bords) throws IOException {
+        String fond = fonds.get(r.nextInt(fonds.size()));
+        BufferedImage fnd = toBufferedImage(openImage(fond));
+        bufferedImage = antiFondBlanc(bufferedImage,fnd,bords,r);
+        if(r.nextDouble()<p) {
+            bufferedImage = muterTaille(bufferedImage, 0.8, r);
+        }
+        if(r.nextDouble()<p) {
+            bufferedImage = muterTourner(bufferedImage, r);
+        }
         if(r.nextDouble()<p)
         {
             bufferedImage = muterTon(bufferedImage,r);
@@ -355,14 +365,14 @@ public class Tchernobyl {
         {
             bufferedImage = muterFlouter(bufferedImage,r);
         }
-        bufferedImage = resizeImage(bufferedImage,dimCible,dimCible);
+        bufferedImage = resizeImage(centrer(bufferedImage),dimCible,dimCible);
         if(r.nextDouble()<p)
         {
             bufferedImage = muterBruiter(bufferedImage,r);
         }
         return bufferedImage;
     }
-    public static void traiterDossier(String source, String dest, int mutations,int dimCible) throws IOException {
+    public static void traiterDossier(String source,String fonds, String dest, int mutations,int dimCible) throws IOException {
         Random r = new Random();
         File directoryPath = new File(source);
         //List of all files and directories
@@ -371,6 +381,7 @@ public class Tchernobyl {
             Files.createDirectories(Paths.get(dest));
         }
         File filesList[] = directoryPath.listFiles();
+        ArrayList<String> fonds_ = (ArrayList<String>) Arrays.stream((new File(fonds)).listFiles()).map(f->f.toString()).collect(Collectors.toList());
         int ifil =0;
         for(File file : filesList) {
             ifil ++;
@@ -384,7 +395,7 @@ public class Tchernobyl {
                 for (int i = 0; i < mutations; i++) {
                     try {
 
-                        saveImage(dest+"/"+nom+"_mut" + i + ".bmp", muter(bi, r, dimCible,0.4,bords));
+                        saveImage(dest+"/"+nom+"_mut" + i + ".bmp", muter(bi,fonds_, r, dimCible,0.2,bords));
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -394,7 +405,7 @@ public class Tchernobyl {
             }
         }
     }
-    public static void traiterDossierdeDossiers(String source, String dest, int mutations,int dimCible) throws IOException {
+    public static void traiterDossierdeDossiers(String source,String fonds, String dest, int mutations,int dimCible) throws IOException {
         Random r = new Random();
         File directoryPath = new File(source);
         //List of all files and directories
@@ -405,7 +416,7 @@ public class Tchernobyl {
             if(file.isDirectory())
             {
                 String destination = dest +"/"+ file.getName();
-                traiterDossier(f,destination,mutations,dimCible);
+                traiterDossier(f,fonds,destination,mutations,dimCible);
             }
         }
     }
