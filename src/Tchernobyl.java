@@ -391,11 +391,11 @@ public class Tchernobyl {
                 BufferedImage bi = toBufferedImage(openImage(f));
                 boolean[][] bords = calculerbords(bi);
                 String nom = new File(source).getName()+"_"+ifil;//file.getName().replaceFirst("[.][^.]+$", "");
-                saveImage(dest+"/"+nom+ "_init.bmp", resizeImage(centrer(bi),dimCible,dimCible));
+                saveImage(dest+"/"+nom+ "_init.png", resizeImage(centrer(bi),dimCible,dimCible));
                 for (int i = 0; i < mutations; i++) {
                     try {
 
-                        saveImage(dest+"/"+nom+"_mut" + i + ".bmp", muter(bi,fonds_, r, dimCible,0.2,bords));
+                        saveImage(dest+"/"+nom+"_mut" + i + ".png", muter(bi,fonds_, r, dimCible,0.4,bords));
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
